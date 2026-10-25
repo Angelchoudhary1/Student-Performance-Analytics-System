@@ -1,0 +1,25 @@
+{
+  "name": "smart-student-performance-analytics",
+  "version": "1.0.0",
+  "description": "Smart Student Performance & Predictive Analytics System - Full-stack NoSQL & MongoDB Project with AI",
+  "scripts": {
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "seed": "cd server && npm run seed",
+    "install:server": "cd server && npm install",
+    "install:client": "cd client && npm install",
+    "install:all": "cd server && npm install && cd ../client && npm install"
+  },
+  "keywords": [
+    "mongodb",
+    "nosql",
+    "react",
+    "express",
+    "machine-learning",
+    "analytics"
+  ],
+  "author": "Student Analytics Team",
+  "license": "ISC",
+  "main": "index.js",
+  "type": "commonjs"
+}
