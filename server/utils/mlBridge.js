@@ -1,10 +1,11 @@
+
 const { spawn } = require('child_process');
 const path = require('path');
 const Mark = require('../models/Mark');
 const Attendance = require('../models/Attendance');
 
 /**
- * Fallback JavaScript ML engine to ensure high availability
+ * JavaScript fallback prediction engine
  */
 const runFallbackPrediction = (features) => {
   const {
@@ -18,68 +19,98 @@ const runFallbackPrediction = (features) => {
   } = features;
 
   const normScore =
-    (attendanceRate / 100.0) * 0.2 +
-    (internalAvg / 20.0) * 0.15 +
-    (assignmentAvg / 10.0) * 0.1 +
-    (midtermAvg / 30.0) * 0.25 +
-    (previousCgpa / 10.0) * 0.3 -
+    (attendanceRate / 100) * 0.2 +
+    (internalAvg / 20) * 0.15 +
+    (assignmentAvg / 10) * 0.1 +
+    (midtermAvg / 30) * 0.25 +
+    (previousCgpa / 10) * 0.3 -
     backlogs * 0.08;
 
-  const predictedCGPA = Number(Math.min(10.0, Math.max(2.0, normScore * 10.0)).toFixed(2));
+  const predictedCGPA = Number(
+    Math.min(10, Math.max(2, normScore * 10)).toFixed(2)
+  );
 
   let riskLevel = 'Low';
-  let passProbability = 92.0;
+  let passProbability = 92;
 
-  if (predictedCGPA < 5.0 || attendanceRate < 60 || backlogs >= 2) {
+  if (predictedCGPA < 5 || attendanceRate < 60 || backlogs >= 2) {
     riskLevel = 'Critical';
-    passProbability = Number(Math.max(15.0, predictedCGPA * 8.0).toFixed(1));
-  } else if (predictedCGPA < 6.2 || attendanceRate < 72 || backlogs === 1) {
+    passProbability = Number(
+      Math.max(15, predictedCGPA * 8).toFixed(1)
+    );
+  } else if (
+    predictedCGPA < 6.2 ||
+    attendanceRate < 72 ||
+    backlogs === 1
+  ) {
     riskLevel = 'High';
-    passProbability = Number(Math.max(45.0, predictedCGPA * 10.0).toFixed(1));
+    passProbability = Number(
+      Math.max(45, predictedCGPA * 10).toFixed(1)
+    );
   } else if (predictedCGPA < 7.5 || attendanceRate < 80) {
     riskLevel = 'Moderate';
-    passProbability = Number(Math.max(75.0, predictedCGPA * 11.0).toFixed(1));
+    passProbability = Number(
+      Math.max(75, predictedCGPA * 11).toFixed(1)
+    );
   } else {
     riskLevel = 'Low';
-    passProbability = Number(Math.min(99.5, 85.0 + (predictedCGPA - 7.5) * 5.0).toFixed(1));
+    passProbability = Number(
+      Math.min(
+        99.5,
+        85 + (predictedCGPA - 7.5) * 5
+      ).toFixed(1)
+    );
   }
 
   const getGradeLetter = (cgpa) => {
-    if (cgpa >= 9.0) return 'O';
-    if (cgpa >= 8.0) return 'A+';
-    if (cgpa >= 7.0) return 'A';
-    if (cgpa >= 6.0) return 'B+';
-    if (cgpa >= 5.0) return 'B';
-    if (cgpa >= 4.0) return 'C';
+    if (cgpa >= 9) return 'O';
+    if (cgpa >= 8) return 'A+';
+    if (cgpa >= 7) return 'A';
+    if (cgpa >= 6) return 'B+';
+    if (cgpa >= 5) return 'B';
+    if (cgpa >= 4) return 'C';
     return 'F';
   };
 
   const riskFactors = [];
   const recommendations = [];
 
-  if (attendanceRate < 75.0) {
+  if (attendanceRate < 75) {
     riskFactors.push({
       factor: `Low Attendance (${attendanceRate}%)`,
-      severity: attendanceRate < 65.0 ? 'High' : 'Medium',
-      impact: 'Ineligibility for end-term examinations if below university 75% cutoff.',
+      severity: attendanceRate < 65 ? 'High' : 'Medium',
+      impact:
+        'Low attendance may affect eligibility for end-term examinations.',
     });
+
     recommendations.push({
       title: 'Mandatory Attendance Recovery',
-      action: 'Attend next consecutive 15 lectures to bring aggregate attendance above 75%.',
+      action:
+        'Consult your faculty and plan additional attendance to meet the required threshold.',
       priority: attendanceRate < 65 ? 'Urgent' : 'High',
     });
   }
 
-  if (midtermAvg < 18.0) {
+  if (midtermAvg < 18) {
     riskFactors.push({
       factor: `Midterm Evaluation Deficit (${midtermAvg}/30)`,
       severity: midtermAvg < 12 ? 'High' : 'Medium',
-      impact: 'Heavily depresses continuous assessment score heading into end-term finals.',
+      impact: 'Low midterm marks may reduce the overall assessment score.',
     });
+
     recommendations.push({
       title: 'Remedial Concept Sessions',
-      action: 'Enroll in faculty office hours for weekly doubt-clearing on core topics.',
+      action:
+        'Attend faculty doubt-clearing sessions and revise core topics.',
       priority: 'High',
+    });
+  }
+
+  if (internalAvg < 12) {
+    riskFactors.push({
+      factor: `Internal Assessment Deficit (${internalAvg}/20)`,
+      severity: 'Medium',
+      impact: 'Low internal marks reduce the available semester grade buffer.',
     });
   }
 
@@ -87,31 +118,51 @@ const runFallbackPrediction = (features) => {
     riskFactors.push({
       factor: `Active Subject Backlogs (${backlogs})`,
       severity: 'High',
-      impact: 'Accumulated arrears directly threaten on-time degree completion.',
+      impact: 'Pending subjects may affect timely degree completion.',
     });
+
     recommendations.push({
-      title: 'Arrear Clearance Action Plan',
-      action: `Register for upcoming supplementary exam cycle for ${backlogs} pending subject(s).`,
+      title: 'Backlog Clearance Plan',
+      action:
+        `Prepare a study plan for ${backlogs} pending subject(s) and check supplementary examination dates.`,
       priority: 'Urgent',
+    });
+  }
+
+  if (studyHours < 10) {
+    recommendations.push({
+      title: 'Study Schedule Optimization',
+      action:
+        'Gradually increase focused weekly study time and review progress.',
+      priority: 'Medium',
     });
   }
 
   if (recommendations.length === 0) {
     recommendations.push({
-      title: 'Honors & Research Track',
-      action: 'Explore undergraduate research publications and capstone honors projects.',
+      title: 'Advanced Learning',
+      action:
+        'Explore research projects and advanced learning opportunities.',
       priority: 'Low',
     });
   }
+
+  const onTimeGraduationProbability = Number(
+    Math.min(
+      99,
+      Math.max(
+        20,
+        100 - backlogs * 22 - (10 - predictedCGPA) * 5
+      )
+    ).toFixed(1)
+  );
 
   return {
     predictedCGPA,
     predictedGrade: getGradeLetter(predictedCGPA),
     riskLevel,
     passProbability,
-    onTimeGraduationProbability: Number(
-      Math.min(99.0, Math.max(20.0, 100.0 - backlogs * 22.0 - (10.0 - predictedCGPA) * 5.0)).toFixed(1)
-    ),
+    onTimeGraduationProbability,
     featureInputs: {
       attendanceRate,
       internalAvg,
@@ -123,38 +174,62 @@ const runFallbackPrediction = (features) => {
     },
     riskFactors,
     recommendations,
-    modelType: 'Scikit-Learn Random Forest Ensemble',
-    accuracyScore: 94.2,
+    modelType: 'JavaScript Fallback Prediction Engine',
+    accuracyScore: null,
   };
 };
 
 /**
- * Extract live academic features for a student from MongoDB
+ * Extract student academic features from MongoDB
  */
 const extractStudentFeatures = async (student) => {
   const marks = await Mark.find({ student: student._id });
-  const attendanceRecords = await Attendance.find({ student: student._id });
+  const attendanceRecords = await Attendance.find({
+    student: student._id,
+  });
 
-  let internalAvg = 15.0;
-  let assignmentAvg = 8.0;
-  let midtermAvg = 22.0;
+  let internalAvg = 15;
+  let assignmentAvg = 8;
+  let midtermAvg = 22;
 
   if (marks.length > 0) {
-    const totalInternal = marks.reduce((sum, m) => sum + (m.internalMarks || 0), 0);
-    const totalAssignment = marks.reduce((sum, m) => sum + (m.assignmentMarks || 0), 0);
-    const totalMidterm = marks.reduce((sum, m) => sum + (m.midtermMarks || 0), 0);
+    const totalInternal = marks.reduce(
+      (sum, mark) => sum + (mark.internalMarks || 0),
+      0
+    );
+
+    const totalAssignment = marks.reduce(
+      (sum, mark) => sum + (mark.assignmentMarks || 0),
+      0
+    );
+
+    const totalMidterm = marks.reduce(
+      (sum, mark) => sum + (mark.midtermMarks || 0),
+      0
+    );
 
     internalAvg = Number((totalInternal / marks.length).toFixed(2));
     assignmentAvg = Number((totalAssignment / marks.length).toFixed(2));
     midtermAvg = Number((totalMidterm / marks.length).toFixed(2));
   }
 
-  let attendanceRate = student.attendanceRate || 80.0;
+  let attendanceRate = student.attendanceRate || 80;
+
   if (attendanceRecords.length > 0) {
-    const totalClasses = attendanceRecords.reduce((sum, a) => sum + (a.totalClasses || 0), 0);
-    const attendedClasses = attendanceRecords.reduce((sum, a) => sum + (a.attendedClasses || 0), 0);
+    const totalClasses = attendanceRecords.reduce(
+      (sum, record) => sum + (record.totalClasses || 0),
+      0
+    );
+
+    const attendedClasses = attendanceRecords.reduce(
+      (sum, record) => sum + (record.attendedClasses || 0),
+      0
+    );
+
     if (totalClasses > 0) {
-      attendanceRate = Number(((attendedClasses / totalClasses) * 100).toFixed(2));
+      attendanceRate = Number(
+        ((attendedClasses / totalClasses) * 100).toFixed(2)
+      );
     }
   }
 
@@ -163,56 +238,107 @@ const extractStudentFeatures = async (student) => {
     internalAvg,
     assignmentAvg,
     midtermAvg,
-    previousCgpa: student.previousCgpa || student.cgpa || 7.0,
+    previousCgpa: student.previousCgpa || student.cgpa || 7,
     backlogs: student.backlogs || 0,
-    studyHoursPerWeek: Math.max(4, Math.round(attendanceRate / 6.0)),
+    studyHoursPerWeek: Math.max(
+      4,
+      Math.round(attendanceRate / 6)
+    ),
   };
 };
 
 /**
- * Predict using Python ML script with graceful fallback
+ * Run the local Python prediction script as a fallback
  */
-const executeMLPrediction = async (features) => {
+const executeLocalPythonPrediction = (features) => {
   return new Promise((resolve) => {
     const pythonExecutable = process.env.PYTHON_PATH || 'python';
-    const scriptPath = path.join(__dirname, '../../ml_service/predict.py');
+
+    const scriptPath = path.join(
+      __dirname,
+      '../../ml_service/predict.py'
+    );
+
+    let stdoutData = '';
 
     try {
-      const pyProcess = spawn(pythonExecutable, [scriptPath, JSON.stringify(features)]);
-
-      let stdoutData = '';
-      let stderrData = '';
+      const pyProcess = spawn(pythonExecutable, [
+        scriptPath,
+        JSON.stringify(features),
+      ]);
 
       pyProcess.stdout.on('data', (data) => {
         stdoutData += data.toString();
       });
 
-      pyProcess.stderr.on('data', (data) => {
-        stderrData += data.toString();
+      pyProcess.on('error', (error) => {
+        console.error('Local Python execution failed:', error.message);
+        resolve(runFallbackPrediction(features));
       });
 
       pyProcess.on('close', (code) => {
-        if (code === 0 && stdoutData.trim()) {
-          try {
-            const parsed = JSON.parse(stdoutData.trim());
-            if (parsed && !parsed.error) {
-              return resolve(parsed);
-            }
-          } catch (e) {
-            // parsing error -> fallback
-          }
-        }
-        // Fallback to JS model
-        resolve(runFallbackPrediction(features));
-      });
+        try {
+          const parsed = JSON.parse(stdoutData.trim());
 
-      pyProcess.on('error', () => {
+          if (code === 0 && parsed && !parsed.error) {
+            return resolve(parsed);
+          }
+        } catch (error) {
+          console.error('Invalid local Python response:', error.message);
+        }
+
         resolve(runFallbackPrediction(features));
       });
-    } catch (err) {
+    } catch (error) {
+      console.error('Could not start Python:', error.message);
       resolve(runFallbackPrediction(features));
     }
   });
+};
+
+/**
+ * Predict using the deployed Render ML API.
+ * If it fails, try local Python, then JavaScript fallback.
+ */
+const executeMLPrediction = async (features) => {
+  const apiUrl = process.env.ML_API_URL;
+
+  if (apiUrl) {
+    try {
+      const response = await fetch(
+        `${apiUrl.replace(/\/+$/, '')}/predict`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(features),
+          signal: AbortSignal.timeout(15000),
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+
+        if (
+          result &&
+          !result.error &&
+          result.predictedCGPA !== undefined
+        ) {
+          return result;
+        }
+
+        console.error('ML API returned an invalid prediction response.');
+      } else {
+        console.error('ML API HTTP status:', response.status);
+      }
+    } catch (error) {
+      console.error('Remote ML API failed:', error.message);
+    }
+  }
+
+  // Try local Python if the remote API is unavailable.
+  return executeLocalPythonPrediction(features);
 };
 
 module.exports = {
